@@ -11,7 +11,7 @@
 #      matches the counts colnames exactly.
 #
 # What this script does:
-#   1) Load SJ reference object (bundled with repo)
+#   1) Load SJ reference object (after user download from OSF)
 #   2) Extract reference counts directly from ref.obj 
 #   3) Intersect genes between reference and test
 #   4) Batch-correct SJ + test with ComBat_seq (counts-based)
@@ -42,7 +42,7 @@ suppressPackageStartupMessages({
 # ---------------------------
 
 # Reference object (ship in repo)
-REF_RDS <- "Data/SJ_with_parent.obj.rds"
+REF_RDS <- "Data/SJ_with_parent.lean.obj.rds"  ### user needs to download from OSF
 
 # Test counts (genes x samples), CSV or TSV
 TEST_COUNTS_FILE <- "Input/Example.TALL.counts.csv"
@@ -83,13 +83,15 @@ BAD_TRUTH_LABELS <- c("", "noAlloc", "unassigned", "NA", "NA.", "None/Other")
 #
 # - Optional: also run the genetic-subtype model across ALL samples and export
 #   the top class/probability as exploratory-only fields (clearly labelled).
+
 RUN_GENETIC_ALL <- FALSE
 
 # Subtype families for which a genetic.subtype prediction is considered applicable
 # (edit this list if you expand your reference annotations)
 GENETIC_ELIGIBLE_SUBTYPES <- c("TAL1_AB-like", "TAL1_DP-like", "TLX3", "ETP-like", "NKX2-1")
+
 # ---------------------------
-# 2) Risk mapping (simple + guarded)
+# 2) Risk mapping 
 # ---------------------------
 
 risk_categories <- list(
@@ -290,6 +292,18 @@ adj_test <- adj[, (ncol(ref.ed) + 1):ncol(adj), drop = FALSE]
 
 saveRDS(adj_test, file.path(OUT_OBJ, "adj_test_counts.rds"))
 
+### Diagnostics
+cat("adj dims: ", dim(adj), "\n")
+cat("adj colnames identical to combined: ",
+    identical(colnames(adj), colnames(combined)), "\n")
+
+print(table(batch.labels))
+print(sum(batch.labels == "TEST"))
+print(sum(batch.labels == "SJ"))
+
+colnames(adj)[1:10]
+tail(colnames(adj), 10)
+
 # ---------------------------
 # 8) Build test Seurat object
 # ---------------------------
@@ -347,6 +361,8 @@ if (!("data" %in% names(Seurat::Assays(test.obj)))) {
 # 1) SUBTYPE first (needed to decide if genetic-subtype prediction is applicable)
 sub_md <- run_one(ref.obj, test.obj, "Reviewed.subtype", "subtype")
 
+colnames(sub_md)
+sub_md$subtype_scpred_prediction
 # Attach subtype predictions to test.obj so we can subset for genetic prediction
 sub_md_rn <- sub_md %>% column_to_rownames("sample_id")
 test.obj  <- AddMetaData(test.obj, sub_md_rn[["subtype_scpred_prediction"]],
@@ -472,5 +488,7 @@ sink(session_file)
 cat("Session info written on:", format(Sys.Date(), "%Y-%m-%d"), "\n\n")
 print(sessionInfo())
 sink()
+
+
 
 message("✅ mapTALL_run_simple complete. See: ", OUT_DIR)
